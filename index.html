@@ -283,10 +283,10 @@ body{background:var(--surf);color:var(--tx);min-height:100vh;font-size:15px}
     position:fixed;left:0;right:0;bottom:0;z-index:80;
     display:flex;flex-direction:row;justify-content:space-around;align-items:stretch;
     background:var(--dark);padding:4px 2px calc(4px + env(safe-area-inset-bottom));
-    overflow-y:visible;flex:none;box-shadow:0 -2px 12px rgba(0,0,0,.2)
+    overflow-x:auto;overflow-y:visible;flex:none;box-shadow:0 -2px 12px rgba(0,0,0,.2)
   }
-  .ni{flex-direction:column;gap:2px;padding:6px 4px;font-size:10.5px;text-align:center;border-radius:10px}
-  .ni .ti{font-size:19px}
+  .ni{flex-direction:column;gap:2px;padding:6px 4px;font-size:9.5px;text-align:center;border-radius:10px;min-width:58px}
+  .ni .ti{font-size:18px}
   .ni.on{background:rgba(59,130,246,.25);color:#fff}
 
   .app{min-height:0}
@@ -383,6 +383,8 @@ body{background:var(--surf);color:var(--tx);min-height:100vh;font-size:15px}
       <button class="ni" onclick="nav('pensionados',this)"><i class="ti ti-id-badge-2"></i> Pensionados</button>
       <button class="ni" id="nav-historial" onclick="nav('historial',this)"><i class="ti ti-history"></i> Historial</button>
       <button class="ni" id="nav-reportes" onclick="nav('reportes',this)"><i class="ti ti-chart-bar"></i> Reportes</button>
+      <button class="ni" id="nav-gastos" onclick="nav('gastos',this)"><i class="ti ti-report-money"></i> Gastos / Corte diario</button>
+      <button class="ni" id="nav-banos" onclick="nav('banos',this)"><i class="ti ti-toilet-paper"></i> Baños públicos</button>
       <button class="ni" id="nav-config" onclick="nav('config',this)"><i class="ti ti-settings"></i> Configuración</button>
     </nav>
     <div class="sb-foot">
@@ -548,6 +550,45 @@ body{background:var(--surf);color:var(--tx);min-height:100vh;font-size:15px}
         <div class="rkg" id="r-kpis"></div>
         <div class="sh"><div class="st" id="r-titulo">Resumen del día</div><span class="admin-badge" style="margin-left:8px">RR</span></div>
         <div class="tw" id="r-tabla-wrap"><table class="tbl" id="r-tabla"><thead id="r-thead"><tr><th>Folio</th><th>Placas</th><th>Tipo</th><th>Tarifa</th><th>Entrada</th><th>Salida</th><th>Duración</th><th>Cobrador</th><th>Total</th></tr></thead><tbody id="r-tb"></tbody></table></div>
+      </div>
+
+      <!-- GASTOS / CORTE DIARIO (solo admin) -->
+      <div class="sc" id="sc-gastos">
+        <div id="gastos-vista-dia">
+          <div class="r-toolbar">
+            <div class="rtb">
+              <button class="rtbt on" onclick="gastosTab('dia',this)">Día</button>
+              <button class="rtbt" onclick="gastosTab('mes',this)">Por mes</button>
+            </div>
+            <div class="r-date-wrap" id="gastos-date-wrap">
+              <input type="date" id="gastos-fecha-inp" onchange="renderGastos()">
+            </div>
+            <div class="r-date-wrap" id="gastos-mes-wrap" style="display:none">
+              <input type="month" id="gastos-mes-inp" onchange="renderGastosMes()">
+            </div>
+            <button class="bs" style="width:auto;height:44px;padding:0 18px;margin:0;display:none" onclick="abrirGastoNuevo()"><i class="ti ti-circle-plus" style="vertical-align:-2px;margin-right:6px"></i>Registrar gasto</button>
+            <button class="btn-pdf" onclick="exportarGastosPDF()"><i class="ti ti-file-type-pdf"></i> Guardar PDF</button>
+          </div>
+          <div class="rkg" id="gastos-kpis"></div>
+          <div class="sh"><div class="st">Gastos registrados ese día</div></div>
+          <div class="tw"><table class="tbl"><thead><tr><th>Hora</th><th>Concepto</th><th>Monto</th><th>Registrado por</th><th></th></tr></thead><tbody id="gastos-tb"></tbody></table></div>
+        </div>
+
+        <div id="gastos-vista-mes" style="display:none">
+          <div class="sh"><div class="st">Corte del mes — acumulado</div><button class="lsm" onclick="ocultarGastosMes()">← Volver al día</button></div>
+          <div class="tw"><table class="tbl"><thead><tr><th>Fecha</th><th>Estacionamiento</th><th>Pensionados</th><th>Baños</th><th>Total ingresos</th><th>Gastos</th><th>Neto del día</th><th>Acumulado del mes</th></tr></thead><tbody id="gastos-mes-tb"></tbody></table></div>
+        </div>
+      </div>
+
+      <!-- BAÑOS PÚBLICOS (solo admin) -->
+      <div class="sc" id="sc-banos">
+        <div class="r-toolbar">
+          <button class="bs" style="width:auto;height:44px;padding:0 18px;margin:0;display:none" onclick="abrirBanoNuevo()"><i class="ti ti-circle-plus" style="vertical-align:-2px;margin-right:6px"></i>Registrar retiro de la caja</button>
+          <button class="btn-pdf" onclick="exportarBanosPDF()"><i class="ti ti-file-type-pdf"></i> Guardar PDF</button>
+        </div>
+        <div class="rkg" id="banos-kpis"></div>
+        <div class="sh"><div class="st">Historial de retiros</div></div>
+        <div class="tw"><table class="tbl"><thead><tr><th>Fecha del retiro</th><th>Monto</th><th>Registrado por</th><th></th></tr></thead><tbody id="banos-tb"></tbody></table></div>
       </div>
 
       <!-- CONFIGURACIÓN (solo admin) -->
@@ -761,6 +802,27 @@ body{background:var(--surf);color:var(--tx);min-height:100vh;font-size:15px}
   </div>
 </div>
 
+<!-- MODAL NUEVO RETIRO DE BAÑOS -->
+<div class="mw" id="modal-bano">
+  <div class="md" style="max-width:420px">
+    <div class="mh"><h2>Registrar retiro de la caja</h2><button class="mx" onclick="document.getElementById('modal-bano').classList.remove('op')"><i class="ti ti-x"></i></button></div>
+    <div class="fg" style="margin-bottom:14px"><label>Fecha del retiro</label><input type="date" id="bf-fecha"></div>
+    <div class="fg" style="margin-bottom:14px"><label>Monto retirado (MXN)</label><input id="bf-monto" type="number" min="0" step="10" placeholder="$0.00"></div>
+    <div class="ca"><button class="bs gn" onclick="guardarBano()"><i class="ti ti-device-floppy" style="font-size:16px;vertical-align:-2px;margin-right:6px"></i>Guardar retiro</button></div>
+  </div>
+</div>
+
+<!-- MODAL NUEVO GASTO -->
+<div class="mw" id="modal-gasto">
+  <div class="md" style="max-width:420px">
+    <div class="mh"><h2>Registrar gasto</h2><button class="mx" onclick="document.getElementById('modal-gasto').classList.remove('op')"><i class="ti ti-x"></i></button></div>
+    <div class="fg" style="margin-bottom:14px"><label>Fecha</label><input type="date" id="gf-fecha"></div>
+    <div class="fg" style="margin-bottom:14px"><label>Concepto</label><input id="gf-concepto" placeholder="Ej. Compra de rollos de papel"></div>
+    <div class="fg" style="margin-bottom:14px"><label>Monto (MXN)</label><input id="gf-monto" type="number" min="0" step="0.5" placeholder="$0.00"></div>
+    <div class="ca"><button class="bs gn" onclick="guardarGasto()"><i class="ti ti-device-floppy" style="font-size:16px;vertical-align:-2px;margin-right:6px"></i>Guardar gasto</button></div>
+  </div>
+</div>
+
 <!-- MODAL CONFIRMACIÓN GENÉRICA (reemplaza confirm() nativo, poco confiable en Electron) -->
 <div class="mw" id="modal-confirmacion">
   <div class="md" style="max-width:400px">
@@ -800,18 +862,21 @@ var DB = {
   },
   tp:{T1:15, T2:20, T3:30},
   pensionados: [],
-  pensConfig: { tarifaTaxista:100, tarifaParticularDefault:180, porcentajeRE:70, proximoFolio:1001 }
+  pensConfig: { tarifaTaxista:100, tarifaParticularDefault:180, porcentajeRE:70, proximoFolio:1001 },
+  gastos: [], // {id, fecha:'YYYY-MM-DD', concepto, monto, registradoPor}
+  banos: [] // {id, fecha:'YYYY-MM-DD', monto, registradoPor} — retiros de la caja de los baños públicos
 };
 
-var MODO_SOLO_LECTURA = true; // Esta es la versión de consulta — no registra entradas, cobros ni pensionados
+var MODO_SOLO_LECTURA = true; // Esta es la versión de consulta — no registra ni edita nada
 var sesionActual = null; // {idx, nombre, entrada, cobrado, vehiculos}
 var pend = null, rModo = 'dia', cobroTotalActual = 0;
 var pensEditandoId = null; // id del pensionado en edición dentro del modal, null = nuevo
+var gastosModo = 'dia'; // 'dia' | 'mes' — vista actual de Gastos/Corte diario
 
 function load(){
   try{
     var s=localStorage.getItem('lc_v6');
-    if(s){ var d=JSON.parse(s); DB.registros=d.registros||[]; DB.sesiones=d.sesiones||[]; DB.factoresDiarios=d.factoresDiarios||{}; DB.config=Object.assign(DB.config,d.config||{}); if(d.config&&d.config.usuarios) DB.config.usuarios=d.config.usuarios; DB.tp=Object.assign(DB.tp,d.tp||{}); DB.pensionados=d.pensionados||[]; DB.pensConfig=Object.assign(DB.pensConfig,d.pensConfig||{}); }
+    if(s){ var d=JSON.parse(s); DB.registros=d.registros||[]; DB.sesiones=d.sesiones||[]; DB.factoresDiarios=d.factoresDiarios||{}; DB.config=Object.assign(DB.config,d.config||{}); if(d.config&&d.config.usuarios) DB.config.usuarios=d.config.usuarios; DB.tp=Object.assign(DB.tp,d.tp||{}); DB.pensionados=d.pensionados||[]; DB.pensConfig=Object.assign(DB.pensConfig,d.pensConfig||{}); DB.gastos=d.gastos||[]; DB.banos=d.banos||[]; }
   }catch(e){}
 }
 function save(){ try{ localStorage.setItem('lc_v6',JSON.stringify(DB)); }catch(e){} sincronizarDriveSiCorresponde(); }
@@ -928,6 +993,8 @@ function actualizarSidebar(){
   // Usuario 4 NO accede a: historial, reportes, configuración (tarifas vive dentro de configuración)
   document.getElementById('nav-historial').classList.toggle('disabled', isCajero);
   document.getElementById('nav-reportes').classList.toggle('disabled', isCajero);
+  document.getElementById('nav-gastos').classList.toggle('disabled', isCajero);
+  document.getElementById('nav-banos').classList.toggle('disabled', isCajero);
   document.getElementById('nav-config').classList.toggle('disabled', isCajero);
 }
 
@@ -943,13 +1010,17 @@ function iniciarCambioTurno(){
   save();
   respaldoAutomaticoDiario();
   // Mostrar resumen
+  var gastosHoy=gastosDelDia(hoy());
+  var netoHoy=gastosNetoDelDia(hoy());
   document.getElementById('turno-nombre').textContent='Fin de turno — '+sesionActual.nombre;
   document.getElementById('turno-sub').textContent='Entrada: '+fmtT(new Date(sesionActual.entrada))+' · Salida: '+fmtT(fin);
   document.getElementById('turno-stats').innerHTML=
     ts('Vehículos atendidos', vRep, '#1d4ed8')
     +ts('Total recibido', fmtMXN(cobRep), '#16a34a')
     +ts('Hora de entrada', fmtT(new Date(sesionActual.entrada)), '')
-    +ts('Hora de salida', fmtT(fin), '');
+    +ts('Hora de salida', fmtT(fin), '')
+    +ts('Gastos del día', fmtMXN(gastosHoy), 'var(--red)')
+    +ts('Neto del día', fmtMXN(netoHoy), netoHoy>=0?'#16a34a':'var(--red)');
   sesionActual=null;
   document.getElementById('turno-wrap').classList.add('op');
   document.getElementById('main-app').style.display='none';
@@ -969,7 +1040,7 @@ function cerrarTurno(){
 function nav(id,btn){
   var idx = sesionActual ? sesionActual.idx : -1;
   var isCajero = idx === 3;
-  var paginasRestringidas = ['historial','reportes','config'];
+  var paginasRestringidas = ['historial','reportes','config','gastos','banos'];
   if(isCajero && paginasRestringidas.indexOf(id) >= 0){
     toast('⚠ Tu usuario no tiene acceso a esta sección');
     return;
@@ -978,7 +1049,7 @@ function nav(id,btn){
   document.getElementById('sc-'+id).classList.add('on');
   document.querySelectorAll('.ni').forEach(function(b){ b.classList.remove('on'); });
   if(btn) btn.classList.add('on');
-  var titles={dashboard:'Dashboard',entrada:'Nuevo ingreso',buscar:'Buscar / Cobrar',pensionados:'Pensionados',historial:'Historial',reportes:'Reportes',config:'Configuración'};
+  var titles={dashboard:'Dashboard',entrada:'Nuevo ingreso',buscar:'Buscar / Cobrar',pensionados:'Pensionados',historial:'Historial',reportes:'Reportes',gastos:'Gastos / Corte diario',banos:'Baños públicos',config:'Configuración'};
   document.getElementById('ttitle').textContent=titles[id]||id;
   if(id==='dashboard') refreshDash();
   if(id==='entrada')   initEntrada();
@@ -986,6 +1057,8 @@ function nav(id,btn){
   if(id==='pensionados') { ocultarPensReporte(); renderPensionados(); }
   if(id==='historial') renderHistorial('');
   if(id==='reportes')  renderReporte(rModo);
+  if(id==='gastos')    { ocultarGastosMes(); document.getElementById('gastos-fecha-inp').value=hoy(); renderGastos(); }
+  if(id==='banos')     renderBanos();
   if(id==='config')    { loadConfig(); document.getElementById('tp0').value=DB.tp.T1; document.getElementById('tp1').value=DB.tp.T2; document.getElementById('tp2').value=DB.tp.T3; renderRE('dia'); mostrarCarpetaRespaldos(); loadPensConfig(); }
 }
 
@@ -1290,6 +1363,9 @@ function renderReporte(modo){
   var avgDur=cob.length?Math.round(cob.reduce(function(s,r){ return s+(r.duracionMin||0); },0)/cob.length):0;
   var ticketProm=cob.length?redondear5(dinero/cob.length):0;
   var activos=todos.filter(function(r){ return r.estado==='activo'; }).length;
+  var fActual=modo==='fecha'?(document.getElementById('r-fecha-inp').value||hoy()):hoy();
+  var gastosDia=gastosDelDia(fActual);
+  var netoDia=dinero-gastosDia;
 
   document.getElementById('r-kpis').innerHTML=
     rk('Vehículos ingresados',todos.length,'var(--blue)')
@@ -1298,7 +1374,9 @@ function renderReporte(modo){
     +rk('Dentro ahora',activos,'')
     +rkTotal('Total recaudado',fmtMXN(dinero),'#16a34a')
     +rk('Estancia promedio',fmtDur(avgDur),'')
-    +rk('Ticket promedio',fmtMXN(ticketProm),'');
+    +rk('Ticket promedio',fmtMXN(ticketProm),'')
+    +rk('Gastos del día',fmtMXN(gastosDia),'var(--red)')
+    +rk('Neto del día (estacionamiento)',fmtMXN(netoDia),netoDia>=0?'#16a34a':'var(--red)');
 
   var tituloModo={dia:'Resumen del día — '+fmtFechaDMA(hoy()),fecha:'Reporte — '+fmtFechaDMA(document.getElementById('r-fecha-inp').value||hoy())};
   document.getElementById('r-titulo').textContent=tituloModo[modo]||'Reporte';
@@ -1351,6 +1429,8 @@ function renderReporteMes(){
   var totalAutos=listaDias.reduce(function(s,d){ return s+d.autos; },0);
   var totalDinero=listaDias.reduce(function(s,d){ return s+d.dinero; },0);
   var totalCancelados=listaDias.reduce(function(s,d){ return s+d.cancelados; },0);
+  var totalGastosMes=listaDias.reduce(function(s,d){ return s+gastosDelDia(d.fecha); },0);
+  var totalNetoMes=totalDinero-totalGastosMes;
 
   // Nombre del mes en español
   var nombreMes=mesNombre(mes);
@@ -1363,16 +1443,18 @@ function renderReporteMes(){
     +rkTotal('Total recaudado en el mes', fmtMXN(totalDinero), '#16a34a')
     +rk('Promedio diario (autos)', listaDias.length?Math.round(totalAutos/listaDias.length):0, '')
     +rk('Promedio diario (dinero)', listaDias.length?fmtMXN(redondear5(totalDinero/listaDias.length)):fmtMXN(0), '')
+    +rk('Gastos del mes', fmtMXN(totalGastosMes), 'var(--red)')
+    +rk('Neto del mes (estacionamiento)', fmtMXN(totalNetoMes), totalNetoMes>=0?'#16a34a':'var(--red)')
     +rk('Período', nombreMes, '');
 
   document.getElementById('r-titulo').textContent='Reporte mensual — '+nombreMes;
 
   document.getElementById('r-thead').innerHTML=
-    '<tr><th>Fecha</th><th>Día</th><th>Vehículos cobrados</th><th>Cancelados</th><th>Total del día</th></tr>';
+    '<tr><th>Fecha</th><th>Día</th><th>Vehículos cobrados</th><th>Cancelados</th><th>Total del día</th><th>Gastos</th><th>Neto</th></tr>';
 
   var tb=document.getElementById('r-tb');
   if(!listaDias.length){
-    tb.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--tx3);padding:22px;font-size:13px">Sin registros en '+nombreMes+'</td></tr>';
+    tb.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--tx3);padding:22px;font-size:13px">Sin registros en '+nombreMes+'</td></tr>';
     return;
   }
 
@@ -1381,12 +1463,16 @@ function renderReporteMes(){
     var fecha=new Date(d.fecha+'T12:00:00');
     var diaSem=diasSemana[fecha.getDay()];
     var fechaLeg=d.fecha.split('-').reverse().join('/');
+    var gastosDia=gastosDelDia(d.fecha);
+    var netoDia=d.dinero-gastosDia;
     return '<tr>'
       +'<td class="fo">'+fechaLeg+'</td>'
       +'<td style="color:var(--tx2);font-size:13px">'+diaSem+'</td>'
       +'<td style="font-weight:700;color:var(--blue);font-size:15px">'+d.autos+'</td>'
       +'<td style="font-weight:700;color:var(--red);font-size:15px">'+(d.cancelados||0)+'</td>'
       +'<td style="font-weight:800;color:#16a34a;font-size:15px">'+fmtMXN(d.dinero)+'</td>'
+      +'<td style="color:var(--red);font-size:14px">'+fmtMXN(gastosDia)+'</td>'
+      +'<td style="font-weight:700;font-size:14px;color:'+(netoDia>=0?'#16a34a':'var(--red)')+'">'+fmtMXN(netoDia)+'</td>'
       +'</tr>';
   }).join('')
   // Fila de totales
@@ -1395,6 +1481,8 @@ function renderReporteMes(){
   +'<td style="font-weight:800;color:#93c5fd;font-size:16px">'+totalAutos+'</td>'
   +'<td style="font-weight:800;color:#fca5a5;font-size:16px">'+totalCancelados+'</td>'
   +'<td style="font-weight:800;color:#86efac;font-size:16px">'+fmtMXN(totalDinero)+'</td>'
+  +'<td style="font-weight:800;color:#fca5a5;font-size:15px">'+fmtMXN(totalGastosMes)+'</td>'
+  +'<td style="font-weight:800;color:'+(totalNetoMes>=0?'#86efac':'#fca5a5')+';font-size:15px">'+fmtMXN(totalNetoMes)+'</td>'
   +'</tr>';
 }
 
@@ -1417,6 +1505,9 @@ function exportarPDF(){
   var paraTabla=ordenarPorSalida(todos.filter(function(r){ return r.estado==='finalizado'||r.estado==='cancelado'; }));
   var dinero=cob.reduce(function(s,r){ return s+(r.total||0); },0);
   var avgDur=cob.length?Math.round(cob.reduce(function(s,r){ return s+(r.duracionMin||0); },0)/cob.length):0;
+  var fecha=rModo==='fecha'?(document.getElementById('r-fecha-inp').value||hoy()):hoy();
+  var gastosDia=gastosDelDia(fecha);
+  var netoDia=dinero-gastosDia;
 
   var cfg=DB.config;
   var tituloModo={dia:'Reporte del día — '+fmtFechaDMA(hoy()),fecha:'Reporte — '+fmtFechaDMA(document.getElementById('r-fecha-inp').value||hoy())};
@@ -1442,7 +1533,11 @@ function exportarPDF(){
   doc.text('Vehículos cobrados: '+cob.length+'     Cancelados: '+cancelados.length, 14, y); y+=6;
   doc.text('Estancia promedio: '+fmtDur(avgDur), 14, y); y+=9;
   doc.setFontSize(22); doc.setTextColor(22,163,74); doc.setFont(undefined,'bold');
-  doc.text('TOTAL RECAUDADO: '+fmtMXN(dinero), 14, y); y+=11;
+  doc.text('TOTAL RECAUDADO: '+fmtMXN(dinero), 14, y); y+=9;
+  doc.setFontSize(11); doc.setTextColor(30); doc.setFont(undefined,'normal');
+  doc.text('Gastos del día: '+fmtMXN(gastosDia), 14, y); y+=7;
+  doc.setFontSize(14); doc.setTextColor(netoDia>=0?22:185, netoDia>=0?163:28, netoDia>=0?74:28); doc.setFont(undefined,'bold');
+  doc.text('Neto del día: '+fmtMXN(netoDia), 14, y); y+=9;
   doc.setFontSize(10); doc.setTextColor(30); doc.setFont(undefined,'normal');
 
   doc.autoTable({
@@ -1459,7 +1554,6 @@ function exportarPDF(){
     alternateRowStyles:{fillColor:[248,250,252]}
   });
 
-  var fecha=rModo==='fecha'?(document.getElementById('r-fecha-inp').value||hoy()):hoy();
   doc.save('LacentraL_reporte_RR_dia_'+fecha+'.pdf');
   toast('✓ PDF guardado');
 }
@@ -1488,6 +1582,8 @@ function exportarPDFMes(){
   var totalAutos=listaDias.reduce(function(s,d){ return s+d.autos; },0);
   var totalDinero=listaDias.reduce(function(s,d){ return s+d.dinero; },0);
   var totalCancelados=listaDias.reduce(function(s,d){ return s+(d.cancelados||0); },0);
+  var totalGastosMes=listaDias.reduce(function(s,d){ return s+gastosDelDia(d.fecha); },0);
+  var totalNetoMes=totalDinero-totalGastosMes;
 
   var nombreMes=mesNombre(mes);
   var cfg=DB.config;
@@ -1510,26 +1606,33 @@ function exportarPDFMes(){
   doc.setFont(undefined,'bold'); doc.setTextColor(30);
   doc.text('Total vehículos: '+totalAutos+'     Cancelados: '+totalCancelados, 14, y); y+=9;
   doc.setFontSize(22); doc.setTextColor(22,163,74); doc.setFont(undefined,'bold');
-  doc.text('TOTAL RECAUDADO: '+fmtMXN(totalDinero), 14, y); y+=11;
+  doc.text('TOTAL RECAUDADO: '+fmtMXN(totalDinero), 14, y); y+=9;
+  doc.setFontSize(11); doc.setTextColor(30); doc.setFont(undefined,'normal');
+  doc.text('Gastos del mes: '+fmtMXN(totalGastosMes), 14, y); y+=7;
+  doc.setFontSize(14); doc.setTextColor(totalNetoMes>=0?22:185, totalNetoMes>=0?163:28, totalNetoMes>=0?74:28); doc.setFont(undefined,'bold');
+  doc.text('Neto del mes: '+fmtMXN(totalNetoMes), 14, y); y+=9;
   doc.setFontSize(10); doc.setTextColor(30); doc.setFont(undefined,'normal');
 
   var body=listaDias.map(function(d){
     var fecha=new Date(d.fecha+'T12:00:00');
+    var gastosDia=gastosDelDia(d.fecha);
     return [
       d.fecha.split('-').reverse().join('/'),
       diasSemana[fecha.getDay()],
       String(d.autos),
       String(d.cancelados||0),
-      fmtMXN(d.dinero)
+      fmtMXN(d.dinero),
+      fmtMXN(gastosDia),
+      fmtMXN(d.dinero-gastosDia)
     ];
   });
-  body.push(['','TOTAL DEL MES', String(totalAutos), String(totalCancelados), fmtMXN(totalDinero)]);
+  body.push(['','TOTAL DEL MES', String(totalAutos), String(totalCancelados), fmtMXN(totalDinero), fmtMXN(totalGastosMes), fmtMXN(totalNetoMes)]);
 
   doc.autoTable({
     startY: y,
-    head:[['Fecha','Día','Vehículos cobrados','Cancelados','Total del día']],
+    head:[['Fecha','Día','Vehículos cobrados','Cancelados','Total del día','Gastos','Neto']],
     body: body,
-    styles:{fontSize:10},
+    styles:{fontSize:9},
     headStyles:{fillColor:[15,23,42]},
     alternateRowStyles:{fillColor:[248,250,252]},
     didParseCell: function(data){
@@ -1641,6 +1744,8 @@ function renderRE(modo){
   var avgDur=cobTodos.length?Math.round(cobTodos.reduce(function(s,r){ return s+(r.duracionMin||0); },0)/cobTodos.length):0;
   var ticketProm=cobradosRep>0?redondear5((dineroReal/(cobTodos.length||1))*pct):0;
   var activos=todos.filter(function(r){ return r.estado==='activo'; }).length;
+  var gastosDia=gastosDelDia(fActual);
+  var netoDia=dineroRep-gastosDia;
 
   document.getElementById('re-kpis').innerHTML=
     rk('Vehículos ingresados',autosRep,'var(--blue)')
@@ -1649,7 +1754,9 @@ function renderRE(modo){
     +rk('Dentro ahora',activos,'')
     +rkTotal('Total recaudado',fmtMXN(dineroRep),'#16a34a')
     +rk('Estancia promedio',fmtDur(avgDur),'')
-    +rk('Ticket promedio',fmtMXN(ticketProm),'');
+    +rk('Ticket promedio',fmtMXN(ticketProm),'')
+    +rk('Gastos del día',fmtMXN(gastosDia),'var(--red)')
+    +rk('Neto del día (estacionamiento)',fmtMXN(netoDia),netoDia>=0?'#16a34a':'var(--red)');
 
   var tituloModo={dia:'Resumen del día — '+fmtFechaDMA(hoy()),fecha:'Reporte — '+fmtFechaDMA(document.getElementById('re-fecha-inp').value||hoy())};
   document.getElementById('re-titulo').textContent=(tituloModo[modo]||'Reporte');
@@ -1698,13 +1805,15 @@ function renderREMes(){
 
   var listaDias=Object.keys(dias).sort().map(function(k){ return dias[k]; });
 
-  var totalAutosRep=0, totalDineroRep=0, totalCancelados=0;
+  var totalAutosRep=0, totalDineroRep=0, totalCancelados=0, totalGastosMes=0;
   listaDias.forEach(function(d){
     var pct=pctDelDiaRE(d.fecha);
     totalAutosRep+=Math.round(d.autos*pct);
     totalDineroRep+=redondear5(d.dinero*pct);
     totalCancelados+=d.cancelados||0;
+    totalGastosMes+=gastosDelDia(d.fecha);
   });
+  var totalNetoMes=totalDineroRep-totalGastosMes;
 
   var nombreMes=mesNombre(mes);
 
@@ -1715,16 +1824,18 @@ function renderREMes(){
     +rkTotal('Total recaudado en el mes', fmtMXN(totalDineroRep), '#16a34a')
     +rk('Promedio diario (autos)', listaDias.length?Math.round(totalAutosRep/listaDias.length):0, '')
     +rk('Promedio diario (dinero)', listaDias.length?fmtMXN(redondear5(totalDineroRep/listaDias.length)):fmtMXN(0), '')
+    +rk('Gastos del mes', fmtMXN(totalGastosMes), 'var(--red)')
+    +rk('Neto del mes (estacionamiento)', fmtMXN(totalNetoMes), totalNetoMes>=0?'#16a34a':'var(--red)')
     +rk('Período', nombreMes, '');
 
   document.getElementById('re-titulo').textContent='Reporte mensual — '+nombreMes;
 
   document.getElementById('re-thead').innerHTML=
-    '<tr><th>Fecha</th><th>Día</th><th>Vehículos cobrados</th><th>Cancelados</th><th>Total del día</th></tr>';
+    '<tr><th>Fecha</th><th>Día</th><th>Vehículos cobrados</th><th>Cancelados</th><th>Total del día</th><th>Gastos</th><th>Neto</th></tr>';
 
   var tb=document.getElementById('re-tb');
   if(!listaDias.length){
-    tb.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--tx3);padding:22px;font-size:13px">Sin registros en '+nombreMes+'</td></tr>';
+    tb.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--tx3);padding:22px;font-size:13px">Sin registros en '+nombreMes+'</td></tr>';
     return;
   }
 
@@ -1736,12 +1847,16 @@ function renderREMes(){
     var fecha=new Date(d.fecha+'T12:00:00');
     var diaSem=diasSemana[fecha.getDay()];
     var fechaLeg=d.fecha.split('-').reverse().join('/');
+    var gastosDia=gastosDelDia(d.fecha);
+    var netoDia=dineroD-gastosDia;
     return '<tr>'
       +'<td class="fo">'+fechaLeg+'</td>'
       +'<td style="color:var(--tx2);font-size:13px">'+diaSem+'</td>'
       +'<td style="font-weight:700;color:var(--blue);font-size:15px">'+autosD+'</td>'
       +'<td style="font-weight:700;color:var(--red);font-size:15px">'+(d.cancelados||0)+'</td>'
       +'<td style="font-weight:800;color:#16a34a;font-size:15px">'+fmtMXN(dineroD)+'</td>'
+      +'<td style="color:var(--red);font-size:14px">'+fmtMXN(gastosDia)+'</td>'
+      +'<td style="font-weight:700;font-size:14px;color:'+(netoDia>=0?'#16a34a':'var(--red)')+'">'+fmtMXN(netoDia)+'</td>'
       +'</tr>';
   }).join('')
   +'<tr style="background:var(--dark);color:#fff">'
@@ -1749,6 +1864,8 @@ function renderREMes(){
   +'<td style="font-weight:800;color:#93c5fd;font-size:16px">'+totalAutosRep+'</td>'
   +'<td style="font-weight:800;color:#fca5a5;font-size:16px">'+totalCancelados+'</td>'
   +'<td style="font-weight:800;color:#86efac;font-size:16px">'+fmtMXN(totalDineroRep)+'</td>'
+  +'<td style="font-weight:800;color:#fca5a5;font-size:15px">'+fmtMXN(totalGastosMes)+'</td>'
+  +'<td style="font-weight:800;color:'+(totalNetoMes>=0?'#86efac':'#fca5a5')+';font-size:15px">'+fmtMXN(totalNetoMes)+'</td>'
   +'</tr>';
 }
 
@@ -1794,7 +1911,13 @@ function exportarPDFRE(){
   doc.text('Vehículos ingresados: '+autosRep+'     Cobrados: '+cobradosRep+'     Cancelados: '+cancelados.length, 14, y); y+=6;
   doc.text('Estancia promedio: '+fmtDur(avgDur), 14, y); y+=9;
   doc.setFontSize(22); doc.setTextColor(22,163,74); doc.setFont(undefined,'bold');
-  doc.text('TOTAL RECAUDADO: '+fmtMXN(dineroRep), 14, y); y+=11;
+  doc.text('TOTAL RECAUDADO: '+fmtMXN(dineroRep), 14, y); y+=9;
+  doc.setFontSize(11); doc.setTextColor(30); doc.setFont(undefined,'normal');
+  var gastosDiaRE=fActual?gastosDelDia(fActual):0;
+  var netoDiaRE=dineroRep-gastosDiaRE;
+  doc.text('Gastos del día: '+fmtMXN(gastosDiaRE), 14, y); y+=7;
+  doc.setFontSize(14); doc.setTextColor(netoDiaRE>=0?22:185, netoDiaRE>=0?163:28, netoDiaRE>=0?74:28); doc.setFont(undefined,'bold');
+  doc.text('Neto del día: '+fmtMXN(netoDiaRE), 14, y); y+=9;
   doc.setFontSize(10); doc.setTextColor(30); doc.setFont(undefined,'normal');
 
   doc.autoTable({
@@ -1838,13 +1961,15 @@ function exportarPDFMesRE(){
   });
   var listaDias=Object.keys(dias).sort().map(function(k){ return dias[k]; });
 
-  var totalAutosRep=0, totalDineroRep=0, totalCancelados=0;
+  var totalAutosRep=0, totalDineroRep=0, totalCancelados=0, totalGastosMes=0;
   listaDias.forEach(function(d){
     var pct=pctDelDiaRE(d.fecha);
     totalAutosRep+=Math.round(d.autos*pct);
     totalDineroRep+=redondear5(d.dinero*pct);
     totalCancelados+=d.cancelados||0;
+    totalGastosMes+=gastosDelDia(d.fecha);
   });
+  var totalNetoMes=totalDineroRep-totalGastosMes;
 
   var nombreMes=mesNombre(mes);
   var cfg=DB.config;
@@ -1867,27 +1992,35 @@ function exportarPDFMesRE(){
   doc.setFont(undefined,'bold'); doc.setTextColor(30);
   doc.text('Total vehículos: '+totalAutosRep+'     Cancelados: '+totalCancelados, 14, y); y+=9;
   doc.setFontSize(22); doc.setTextColor(22,163,74); doc.setFont(undefined,'bold');
-  doc.text('TOTAL RECAUDADO: '+fmtMXN(totalDineroRep), 14, y); y+=11;
+  doc.text('TOTAL RECAUDADO: '+fmtMXN(totalDineroRep), 14, y); y+=9;
+  doc.setFontSize(11); doc.setTextColor(30); doc.setFont(undefined,'normal');
+  doc.text('Gastos del mes: '+fmtMXN(totalGastosMes), 14, y); y+=7;
+  doc.setFontSize(14); doc.setTextColor(totalNetoMes>=0?22:185, totalNetoMes>=0?163:28, totalNetoMes>=0?74:28); doc.setFont(undefined,'bold');
+  doc.text('Neto del mes: '+fmtMXN(totalNetoMes), 14, y); y+=9;
   doc.setFontSize(10); doc.setTextColor(30); doc.setFont(undefined,'normal');
 
   var body=listaDias.map(function(d){
     var pct=pctDelDiaRE(d.fecha);
     var fecha=new Date(d.fecha+'T12:00:00');
+    var dineroD=redondear5(d.dinero*pct);
+    var gastosDia=gastosDelDia(d.fecha);
     return [
       d.fecha.split('-').reverse().join('/'),
       diasSemana[fecha.getDay()],
       String(Math.round(d.autos*pct)),
       String(d.cancelados||0),
-      fmtMXN(redondear5(d.dinero*pct))
+      fmtMXN(dineroD),
+      fmtMXN(gastosDia),
+      fmtMXN(dineroD-gastosDia)
     ];
   });
-  body.push(['','TOTAL DEL MES', String(totalAutosRep), String(totalCancelados), fmtMXN(totalDineroRep)]);
+  body.push(['','TOTAL DEL MES', String(totalAutosRep), String(totalCancelados), fmtMXN(totalDineroRep), fmtMXN(totalGastosMes), fmtMXN(totalNetoMes)]);
 
   doc.autoTable({
     startY: y,
-    head:[['Fecha','Día','Vehículos cobrados','Cancelados','Total del día']],
+    head:[['Fecha','Día','Vehículos cobrados','Cancelados','Total del día','Gastos','Neto']],
     body: body,
-    styles:{fontSize:10},
+    styles:{fontSize:9},
     headStyles:{fillColor:[15,23,42]},
     alternateRowStyles:{fillColor:[248,250,252]},
     didParseCell: function(data){
@@ -2011,14 +2144,16 @@ function cancelarFolio(){
 function datosRespaldoJSON(){
   var ahora = new Date();
   var datos = {
-    version: 9,
+    version: 11,
     fecha: ahora.toISOString(),
     registros: DB.registros,
     sesiones: DB.sesiones,
     config: DB.config,
     tp: DB.tp,
     pensionados: DB.pensionados,
-    pensConfig: DB.pensConfig
+    pensConfig: DB.pensConfig,
+    gastos: DB.gastos,
+    banos: DB.banos
   };
   return JSON.stringify(datos, null, 2);
 }
@@ -2128,6 +2263,8 @@ function procesarDatosRespaldo(jsonTexto){
     DB.tp = Object.assign(DB.tp, datos.tp || {});
     DB.pensionados = datos.pensionados || [];
     DB.pensConfig = Object.assign(DB.pensConfig, datos.pensConfig || {});
+    DB.gastos = datos.gastos || [];
+    DB.banos = datos.banos || [];
     save();
     cerrarVehiculosAnteriores();
     buildLoginUsers();
@@ -2672,6 +2809,370 @@ function exportarPensPDF(modo){
 
   doc.save('Pensionados_reporte_'+modo+'_'+hoy()+'.pdf');
   toast('✓ PDF de pensionados guardado');
+}
+
+// ── GASTOS / CORTE DIARIO ──────────────────────────────────────────────────────
+// Todo aquí trabaja siempre con cifras reales al 100% (no aplica RR/RE).
+// El ingreso de estacionamiento y de pensionados se cuenta el día en que
+// realmente se cobró (fecha de salida / fecha de pago), no el día de entrada,
+// para que el corte refleje el efectivo que de verdad entró ese día.
+
+function gastosIngresoParking(fecha){
+  return DB.registros
+    .filter(function(r){ return r.estado==='finalizado' && r.salida && r.salida.startsWith(fecha); })
+    .reduce(function(s,r){ return s+(r.total||0); },0);
+}
+function gastosIngresoPensionados(fecha){
+  return pensTodosLosPagos()
+    .filter(function(ev){ return ev.fecha===fecha; })
+    .reduce(function(s,ev){ return s+(ev.monto||0); },0);
+}
+function gastosIngresoBanos(fecha){
+  return DB.banos
+    .filter(function(b){ return b.fecha===fecha; })
+    .reduce(function(s,b){ return s+(b.monto||0); },0);
+}
+function gastosDelDia(fecha){
+  return DB.gastos
+    .filter(function(g){ return g.fecha===fecha; })
+    .reduce(function(s,g){ return s+(g.monto||0); },0);
+}
+function gastosNetoDelDia(fecha){
+  return gastosIngresoParking(fecha)+gastosIngresoPensionados(fecha)+gastosIngresoBanos(fecha)-gastosDelDia(fecha);
+}
+// Suma el neto de cada día del 1 al día de "fecha" dentro de su mismo mes —
+// así los días con gastos mayores a los ingresos se van descontando del
+// acumulado, y no se pierden aunque cambie de mes.
+function gastosAcumuladoMes(fecha){
+  var mes=fecha.slice(0,7);
+  var dia=parseInt(fecha.slice(8,10),10);
+  var acumulado=0;
+  for(var d=1; d<=dia; d++){
+    acumulado+=gastosNetoDelDia(mes+'-'+('0'+d).slice(-2));
+  }
+  return acumulado;
+}
+
+function gastosTab(t,btn){
+  document.querySelectorAll('#sc-gastos .rtbt').forEach(function(b){ b.classList.remove('on'); });
+  btn.classList.add('on'); gastosModo=t;
+  document.getElementById('gastos-date-wrap').style.display=(t==='dia')?'flex':'none';
+  document.getElementById('gastos-mes-wrap').style.display=(t==='mes')?'flex':'none';
+  if(t==='dia'){ ocultarGastosMes(); renderGastos(); }
+  if(t==='mes'){
+    document.getElementById('gastos-mes-inp').value=hoy().substring(0,7);
+    mostrarGastosMes();
+  }
+}
+
+function renderGastos(){
+  var fecha=document.getElementById('gastos-fecha-inp').value || hoy();
+  var ingParking=gastosIngresoParking(fecha);
+  var ingPens=gastosIngresoPensionados(fecha);
+  var ingBanos=gastosIngresoBanos(fecha);
+  var totalIng=ingParking+ingPens+ingBanos;
+  var gastosDia=gastosDelDia(fecha);
+  var neto=totalIng-gastosDia;
+  var acumulado=gastosAcumuladoMes(fecha);
+
+  document.getElementById('gastos-kpis').innerHTML=
+    rk('Ingreso estacionamiento',fmtMXN(ingParking),'var(--blue)')
+    +rk('Ingreso pensionados',fmtMXN(ingPens),'var(--blue)')
+    +rk('Ingreso baños públicos',fmtMXN(ingBanos),'var(--blue)')
+    +rkTotal('Total ingresos del día',fmtMXN(totalIng),'#16a34a')
+    +rk('Gastos del día',fmtMXN(gastosDia),'var(--red)')
+    +rk('Neto del día', fmtMXN(neto), neto>=0?'#16a34a':'var(--red)')
+    +rk('Acumulado del mes', fmtMXN(acumulado), acumulado>=0?'#16a34a':'var(--red)');
+
+  var lista=DB.gastos.filter(function(g){ return g.fecha===fecha; }).sort(function(a,b){ return (b.creado||'').localeCompare(a.creado||''); });
+  var tb=document.getElementById('gastos-tb');
+  if(!lista.length){ tb.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--tx3);padding:22px;font-size:13px">Sin gastos registrados este día</td></tr>'; return; }
+  tb.innerHTML=lista.map(function(g){
+    return '<tr><td>'+(g.creado?fmtT(new Date(g.creado)):'—')+'</td>'
+      +'<td>'+pensEscapeHtml(g.concepto)+'</td>'
+      +'<td style="font-weight:700;color:var(--red)">'+fmtMXN(g.monto||0)+'</td>'
+      +'<td style="font-size:12px;color:var(--tx2)">'+pensEscapeHtml(g.registradoPor||'—')+'</td>'
+      +'<td>'+(MODO_SOLO_LECTURA?'':'<button class="bc" style="background:var(--red)" onclick="eliminarGasto(\''+g.id+'\')">Cancelar</button>')+'</td></tr>';
+  }).join('');
+}
+
+function abrirGastoNuevo(){
+  document.getElementById('gf-fecha').value=document.getElementById('gastos-fecha-inp').value || hoy();
+  document.getElementById('gf-concepto').value='';
+  document.getElementById('gf-monto').value='';
+  document.getElementById('modal-gasto').classList.add('op');
+}
+function guardarGasto(){
+  if(MODO_SOLO_LECTURA){ toast('⚠ Esta es la versión de consulta — no se pueden hacer cambios aquí'); return; }
+  var fecha=document.getElementById('gf-fecha').value;
+  var concepto=document.getElementById('gf-concepto').value.trim();
+  var monto=Number(document.getElementById('gf-monto').value);
+  if(!fecha||!concepto||!monto||monto<=0){ toast('⚠ Completa la fecha, el concepto y un monto válido'); return; }
+  DB.gastos.push({
+    id:pensGenId(),
+    fecha:fecha,
+    concepto:concepto,
+    monto:monto,
+    registradoPor:sesionActual?sesionActual.nombre:'—',
+    creado:new Date().toISOString()
+  });
+  save();
+  document.getElementById('modal-gasto').classList.remove('op');
+  toast('✓ Gasto registrado');
+  renderGastos();
+}
+function eliminarGasto(id){
+  if(MODO_SOLO_LECTURA){ toast('⚠ Esta es la versión de consulta — no se pueden hacer cambios aquí'); return; }
+  mostrarConfirmacion(
+    'Cancelar gasto',
+    '¿Eliminar este gasto? Esta acción no se puede deshacer.',
+    function(confirmado){
+      if(!confirmado) return;
+      DB.gastos=DB.gastos.filter(function(g){ return g.id!==id; });
+      save();
+      renderGastos();
+      toast('✓ Gasto eliminado');
+    },
+    'Sí, eliminar'
+  );
+}
+
+// ── Vista mensual (corte acumulado) ─────────────────────────────────────────
+function gastosDiasDelMes(mes){
+  var partes=mes.split('-').map(Number);
+  return new Date(partes[0], partes[1], 0).getDate(); // último día del mes
+}
+function mostrarGastosMes(){
+  document.getElementById('gastos-vista-dia').style.display='none';
+  document.getElementById('gastos-vista-mes').style.display='block';
+  renderGastosMes();
+}
+function ocultarGastosMes(){
+  document.getElementById('gastos-vista-dia').style.display='block';
+  document.getElementById('gastos-vista-mes').style.display='none';
+}
+function renderGastosMes(){
+  var mes=document.getElementById('gastos-mes-inp').value || hoy().substring(0,7);
+  var totalDias=gastosDiasDelMes(mes);
+  var hoyStr=hoy();
+  var acumulado=0;
+  var filas=[];
+  for(var d=1; d<=totalDias; d++){
+    var fecha=mes+'-'+('0'+d).slice(-2);
+    if(fecha>hoyStr) break; // no calcular días futuros
+    var ingP=gastosIngresoParking(fecha);
+    var ingPe=gastosIngresoPensionados(fecha);
+    var ingB=gastosIngresoBanos(fecha);
+    var totIng=ingP+ingPe+ingB;
+    var gDia=gastosDelDia(fecha);
+    var neto=totIng-gDia;
+    acumulado+=neto;
+    if(ingP===0 && ingPe===0 && ingB===0 && gDia===0) continue; // omitir días totalmente sin actividad
+    filas.push({fecha:fecha,ingP:ingP,ingPe:ingPe,ingB:ingB,totIng:totIng,gDia:gDia,neto:neto,acumulado:acumulado});
+  }
+  var tb=document.getElementById('gastos-mes-tb');
+  if(!filas.length){
+    tb.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--tx3);padding:22px;font-size:13px">Sin movimientos registrados en '+mesNombre(mes)+'</td></tr>';
+    return;
+  }
+  tb.innerHTML=filas.map(function(f){
+    return '<tr>'
+      +'<td class="fo">'+fmtFechaDMA(f.fecha)+'</td>'
+      +'<td>'+fmtMXN(f.ingP)+'</td>'
+      +'<td>'+fmtMXN(f.ingPe)+'</td>'
+      +'<td>'+fmtMXN(f.ingB)+'</td>'
+      +'<td style="font-weight:700;color:#16a34a">'+fmtMXN(f.totIng)+'</td>'
+      +'<td style="color:var(--red)">'+fmtMXN(f.gDia)+'</td>'
+      +'<td style="font-weight:700;color:'+(f.neto>=0?'#16a34a':'var(--red)')+'">'+fmtMXN(f.neto)+'</td>'
+      +'<td style="font-weight:800;color:'+(f.acumulado>=0?'#16a34a':'var(--red)')+'">'+fmtMXN(f.acumulado)+'</td>'
+      +'</tr>';
+  }).join('');
+}
+
+// ── PDF ───────────────────────────────────────────────────────────────────────
+function exportarGastosPDF(){
+  if(gastosModo==='mes'){ exportarGastosMesPDF(); return; }
+  var fecha=document.getElementById('gastos-fecha-inp').value || hoy();
+  var ingP=gastosIngresoParking(fecha), ingPe=gastosIngresoPensionados(fecha), ingB=gastosIngresoBanos(fecha);
+  var totIng=ingP+ingPe+ingB, gDia=gastosDelDia(fecha), neto=totIng-gDia, acumulado=gastosAcumuladoMes(fecha);
+  var lista=DB.gastos.filter(function(g){ return g.fecha===fecha; });
+  var cfg=DB.config;
+
+  var doc=new jspdf.jsPDF();
+  var pageW=doc.internal.pageSize.getWidth();
+  try{ doc.addImage('data:image/jpeg;base64,'+LOGO_B64,'JPEG',pageW-32,10,22,22); }catch(e){}
+  var y=18;
+  doc.setFontSize(16); doc.setFont(undefined,'bold');
+  doc.text(cfg.nombre, 14, y); y+=8;
+  doc.setFontSize(10); doc.setFont(undefined,'normal'); doc.setTextColor(100);
+  if(cfg.dir){ doc.text(cfg.dir, 14, y); y+=5; }
+  if(cfg.tel){ doc.text('Tel: '+cfg.tel, 14, y); y+=5; }
+  y+=3;
+  doc.setFontSize(13); doc.setFont(undefined,'bold'); doc.setTextColor(30);
+  doc.text('Corte diario — '+fmtFechaDMA(fecha), 14, y); y+=8;
+  doc.setFontSize(10); doc.setFont(undefined,'normal'); doc.setTextColor(80);
+  doc.text('Generado: '+fmtD(new Date())+' '+fmtT(new Date()), 14, y); y+=9;
+  doc.setFont(undefined,'bold'); doc.setTextColor(30);
+  doc.text('Estacionamiento: '+fmtMXN(ingP)+'   Pensionados: '+fmtMXN(ingPe)+'   Baños: '+fmtMXN(ingB)+'   Gastos: '+fmtMXN(gDia), 14, y); y+=9;
+  doc.setFontSize(22); doc.setTextColor(neto>=0?22:185, neto>=0?163:28, neto>=0?74:28); doc.setFont(undefined,'bold');
+  doc.text('NETO DEL DÍA: '+fmtMXN(neto), 14, y); y+=9;
+  doc.setFontSize(12); doc.setTextColor(30);
+  doc.text('Acumulado del mes: '+fmtMXN(acumulado), 14, y); y+=8;
+  doc.setFontSize(10); doc.setTextColor(30); doc.setFont(undefined,'normal');
+
+  doc.autoTable({
+    startY: y,
+    head:[['Hora','Concepto','Monto','Registrado por']],
+    body: lista.map(function(g){ return [g.creado?fmtT(new Date(g.creado)):'—', g.concepto, fmtMXN(g.monto||0), g.registradoPor||'—']; }),
+    styles:{fontSize:9},
+    headStyles:{fillColor:[15,23,42]},
+    alternateRowStyles:{fillColor:[248,250,252]}
+  });
+
+  doc.save('CorteDiario_'+fecha+'.pdf');
+  toast('✓ PDF del corte diario guardado');
+}
+
+function exportarGastosMesPDF(){
+  var mes=document.getElementById('gastos-mes-inp').value || hoy().substring(0,7);
+  var totalDias=gastosDiasDelMes(mes), hoyStr=hoy();
+  var acumulado=0, filas=[];
+  for(var d=1; d<=totalDias; d++){
+    var fecha=mes+'-'+('0'+d).slice(-2);
+    if(fecha>hoyStr) break;
+    var ingP=gastosIngresoParking(fecha), ingPe=gastosIngresoPensionados(fecha), ingB=gastosIngresoBanos(fecha);
+    var totIng=ingP+ingPe+ingB, gDia=gastosDelDia(fecha), neto=totIng-gDia;
+    acumulado+=neto;
+    if(ingP===0 && ingPe===0 && ingB===0 && gDia===0) continue;
+    filas.push([fmtFechaDMA(fecha), fmtMXN(ingP), fmtMXN(ingPe), fmtMXN(ingB), fmtMXN(totIng), fmtMXN(gDia), fmtMXN(neto), fmtMXN(acumulado)]);
+  }
+  var cfg=DB.config;
+  var doc=new jspdf.jsPDF();
+  var pageW=doc.internal.pageSize.getWidth();
+  try{ doc.addImage('data:image/jpeg;base64,'+LOGO_B64,'JPEG',pageW-32,10,22,22); }catch(e){}
+  var y=18;
+  doc.setFontSize(16); doc.setFont(undefined,'bold');
+  doc.text(cfg.nombre, 14, y); y+=8;
+  doc.setFontSize(10); doc.setFont(undefined,'normal'); doc.setTextColor(100);
+  if(cfg.dir){ doc.text(cfg.dir, 14, y); y+=5; }
+  if(cfg.tel){ doc.text('Tel: '+cfg.tel, 14, y); y+=5; }
+  y+=3;
+  doc.setFontSize(13); doc.setFont(undefined,'bold'); doc.setTextColor(30);
+  doc.text('Corte del mes — '+mesNombre(mes), 14, y); y+=8;
+  doc.setFontSize(10); doc.setFont(undefined,'normal'); doc.setTextColor(80);
+  doc.text('Generado: '+fmtD(new Date())+' '+fmtT(new Date()), 14, y); y+=9;
+  doc.setFontSize(20); doc.setTextColor(acumulado>=0?22:185, acumulado>=0?163:28, acumulado>=0?74:28); doc.setFont(undefined,'bold');
+  doc.text('ACUMULADO DEL MES: '+fmtMXN(acumulado), 14, y); y+=10;
+  doc.setFontSize(10); doc.setTextColor(30); doc.setFont(undefined,'normal');
+
+  doc.autoTable({
+    startY: y,
+    head:[['Fecha','Estacionamiento','Pensionados','Baños','Total ingresos','Gastos','Neto del día','Acumulado']],
+    body: filas,
+    styles:{fontSize:8},
+    headStyles:{fillColor:[15,23,42]},
+    alternateRowStyles:{fillColor:[248,250,252]}
+  });
+
+  doc.save('CorteMensual_'+mes+'.pdf');
+  toast('✓ PDF del corte mensual guardado');
+}
+
+// ── BAÑOS PÚBLICOS ────────────────────────────────────────────────────────────
+function renderBanos(){
+  var lista=DB.banos.slice().sort(function(a,b){ return (b.fecha||'').localeCompare(a.fecha||'')||(b.creado||'').localeCompare(a.creado||''); });
+  var h=hoy();
+  var mesActual=h.slice(0,7);
+  var totalMes=DB.banos.filter(function(b){ return b.fecha.slice(0,7)===mesActual; }).reduce(function(s,b){ return s+(b.monto||0); },0);
+  var totalAcumulado=DB.banos.reduce(function(s,b){ return s+(b.monto||0); },0);
+  var ultimo=lista[0];
+
+  document.getElementById('banos-kpis').innerHTML=
+    rk('Retiros registrados', DB.banos.length, 'var(--blue)')
+    +rk('Total este mes', fmtMXN(totalMes), '#16a34a')
+    +rkTotal('Total acumulado (histórico)', fmtMXN(totalAcumulado), '#16a34a')
+    +rk('Último retiro', ultimo?(fmtFechaDMA(ultimo.fecha)+' — '+fmtMXN(ultimo.monto||0)):'—', '');
+
+  var tb=document.getElementById('banos-tb');
+  if(!lista.length){ tb.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--tx3);padding:22px;font-size:13px">Aún no hay retiros registrados. Usa "Registrar retiro de la caja" para agregar el primero.</td></tr>'; return; }
+  tb.innerHTML=lista.map(function(b){
+    return '<tr><td class="fo">'+fmtFechaDMA(b.fecha)+'</td>'
+      +'<td style="font-weight:700;color:#16a34a">'+fmtMXN(b.monto||0)+'</td>'
+      +'<td style="font-size:12px;color:var(--tx2)">'+pensEscapeHtml(b.registradoPor||'—')+'</td>'
+      +'<td>'+(MODO_SOLO_LECTURA?'':'<button class="bc" style="background:var(--red)" onclick="eliminarBano(\''+b.id+'\')">Cancelar</button>')+'</td></tr>';
+  }).join('');
+}
+
+function abrirBanoNuevo(){
+  document.getElementById('bf-fecha').value=hoy();
+  document.getElementById('bf-monto').value='';
+  document.getElementById('modal-bano').classList.add('op');
+}
+function guardarBano(){
+  if(MODO_SOLO_LECTURA){ toast('⚠ Esta es la versión de consulta — no se pueden hacer cambios aquí'); return; }
+  var fecha=document.getElementById('bf-fecha').value;
+  var monto=Number(document.getElementById('bf-monto').value);
+  if(!fecha||!monto||monto<=0){ toast('⚠ Completa la fecha y un monto válido'); return; }
+  DB.banos.push({
+    id:pensGenId(),
+    fecha:fecha,
+    monto:monto,
+    registradoPor:sesionActual?sesionActual.nombre:'—',
+    creado:new Date().toISOString()
+  });
+  save();
+  document.getElementById('modal-bano').classList.remove('op');
+  toast('✓ Retiro registrado — se sumó a los ingresos del estacionamiento');
+  renderBanos();
+}
+function eliminarBano(id){
+  if(MODO_SOLO_LECTURA){ toast('⚠ Esta es la versión de consulta — no se pueden hacer cambios aquí'); return; }
+  mostrarConfirmacion(
+    'Cancelar retiro',
+    '¿Eliminar este retiro de la caja de baños? Esta acción no se puede deshacer.',
+    function(confirmado){
+      if(!confirmado) return;
+      DB.banos=DB.banos.filter(function(b){ return b.id!==id; });
+      save();
+      renderBanos();
+      toast('✓ Retiro eliminado');
+    },
+    'Sí, eliminar'
+  );
+}
+function exportarBanosPDF(){
+  var lista=DB.banos.slice().sort(function(a,b){ return (a.fecha||'').localeCompare(b.fecha||''); });
+  var totalAcumulado=lista.reduce(function(s,b){ return s+(b.monto||0); },0);
+  var cfg=DB.config;
+  var doc=new jspdf.jsPDF();
+  var pageW=doc.internal.pageSize.getWidth();
+  try{ doc.addImage('data:image/jpeg;base64,'+LOGO_B64,'JPEG',pageW-32,10,22,22); }catch(e){}
+  var y=18;
+  doc.setFontSize(16); doc.setFont(undefined,'bold');
+  doc.text(cfg.nombre, 14, y); y+=8;
+  doc.setFontSize(10); doc.setFont(undefined,'normal'); doc.setTextColor(100);
+  if(cfg.dir){ doc.text(cfg.dir, 14, y); y+=5; }
+  if(cfg.tel){ doc.text('Tel: '+cfg.tel, 14, y); y+=5; }
+  y+=3;
+  doc.setFontSize(13); doc.setFont(undefined,'bold'); doc.setTextColor(30);
+  doc.text('Baños públicos — Historial de retiros', 14, y); y+=8;
+  doc.setFontSize(10); doc.setFont(undefined,'normal'); doc.setTextColor(80);
+  doc.text('Generado: '+fmtD(new Date())+' '+fmtT(new Date()), 14, y); y+=9;
+  doc.setFontSize(20); doc.setTextColor(22,163,74); doc.setFont(undefined,'bold');
+  doc.text('TOTAL ACUMULADO: '+fmtMXN(totalAcumulado), 14, y); y+=10;
+  doc.setFontSize(10); doc.setTextColor(30); doc.setFont(undefined,'normal');
+
+  doc.autoTable({
+    startY: y,
+    head:[['Fecha del retiro','Monto','Registrado por']],
+    body: lista.map(function(b){ return [fmtFechaDMA(b.fecha), fmtMXN(b.monto||0), b.registradoPor||'—']; }),
+    styles:{fontSize:9},
+    headStyles:{fillColor:[15,23,42]},
+    alternateRowStyles:{fillColor:[248,250,252]}
+  });
+
+  doc.save('Banos_publicos_historial.pdf');
+  toast('✓ PDF de baños públicos guardado');
 }
 
 // ── INICIO ────────────────────────────────────────────────────────────────────
