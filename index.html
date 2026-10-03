@@ -570,6 +570,8 @@ body{background:var(--surf);color:var(--tx);min-height:100vh;font-size:15px}
             <button class="btn-pdf" onclick="exportarGastosPDF()"><i class="ti ti-file-type-pdf"></i> Guardar PDF</button>
           </div>
           <div class="rkg" id="gastos-kpis"></div>
+          <div class="sh"><div class="st">Recaudado por usuario ese día</div></div>
+          <div class="tw"><table class="tbl"><thead><tr><th>Usuario</th><th>Estacionamiento</th><th>Pensionados</th><th>Baños</th><th>Total</th></tr></thead><tbody id="gastos-usuarios-tb"></tbody></table></div>
           <div class="sh"><div class="st">Gastos registrados ese día</div></div>
           <div class="tw"><table class="tbl"><thead><tr><th>Hora</th><th>Concepto</th><th>Monto</th><th>Registrado por</th><th></th></tr></thead><tbody id="gastos-tb"></tbody></table></div>
         </div>
@@ -577,6 +579,8 @@ body{background:var(--surf);color:var(--tx);min-height:100vh;font-size:15px}
         <div id="gastos-vista-mes" style="display:none">
           <div class="sh"><div class="st">Corte del mes — acumulado</div><button class="lsm" onclick="ocultarGastosMes()">← Volver al día</button></div>
           <div class="tw"><table class="tbl"><thead><tr><th>Fecha</th><th>Estacionamiento</th><th>Pensionados</th><th>Baños</th><th>Total ingresos</th><th>Gastos</th><th>Neto del día</th><th>Acumulado del mes</th></tr></thead><tbody id="gastos-mes-tb"></tbody></table></div>
+          <div class="sh"><div class="st">Recaudado por usuario este mes</div></div>
+          <div class="tw"><table class="tbl"><thead><tr><th>Usuario</th><th>Estacionamiento</th><th>Pensionados</th><th>Baños</th><th>Total</th></tr></thead><tbody id="gastos-mes-usuarios-tb"></tbody></table></div>
         </div>
       </div>
 
@@ -2622,7 +2626,7 @@ function guardarPensionado(){
     var p=DB.pensionados.find(function(x){ return x.id===pensEditandoId; });
     if(p) Object.assign(p,datos);
   } else {
-    DB.pensionados.push(Object.assign({id:pensGenId(),activo:true,historial:[]},datos));
+    DB.pensionados.push(Object.assign({id:pensGenId(),activo:true,historial:[],registradoPor:sesionActual?sesionActual.nombre:'—'},datos));
   }
   pensAvanzarProximoFolio(folio);
   save();
@@ -2637,12 +2641,13 @@ function renovarPensionadoPago(){
   var p=DB.pensionados.find(function(x){ return x.id===pensEditandoId; }); if(!p) return;
   var nuevoFolio=document.getElementById('pf-folio').value.trim();
   p.historial=p.historial||[];
-  p.historial.unshift({folio:p.folio||'',fechaPago:p.fechaPago,vigenciaHasta:p.vigenciaHasta,monto:p.tarifa});
+  p.historial.unshift({folio:p.folio||'',fechaPago:p.fechaPago,vigenciaHasta:p.vigenciaHasta,monto:p.tarifa,registradoPor:p.registradoPor||'—'});
   var h=hoy();
   p.folio=nuevoFolio;
   p.fechaPago=h;
   p.vigenciaHasta=pensAddDays(h,7);
   p.activo=true;
+  p.registradoPor=sesionActual?sesionActual.nombre:'—';
   pensAvanzarProximoFolio(nuevoFolio);
   save();
   cerrarModalPensionado();
@@ -2729,9 +2734,9 @@ function pensInicioSemana(h){
 function pensTodosLosPagos(){
   var eventos=[];
   DB.pensionados.forEach(function(p){
-    eventos.push({folio:p.folio||'',nombre:p.nombre,fecha:p.fechaPago,monto:Number(p.tarifa||0)});
+    eventos.push({folio:p.folio||'',nombre:p.nombre,fecha:p.fechaPago,monto:Number(p.tarifa||0),registradoPor:p.registradoPor||'—'});
     (p.historial||[]).forEach(function(hEv){
-      eventos.push({folio:hEv.folio||'',nombre:p.nombre,fecha:hEv.fechaPago,monto:Number(hEv.monto||0)});
+      eventos.push({folio:hEv.folio||'',nombre:p.nombre,fecha:hEv.fechaPago,monto:Number(hEv.monto||0),registradoPor:hEv.registradoPor||'—'});
     });
   });
   return eventos;
@@ -2884,6 +2889,8 @@ function renderGastos(){
     +rk('Neto del día', fmtMXN(neto), neto>=0?'#16a34a':'var(--red)')
     +rk('Acumulado del mes', fmtMXN(acumulado), acumulado>=0?'#16a34a':'var(--red)');
 
+  renderGastosUsuarios(fecha);
+
   var lista=DB.gastos.filter(function(g){ return g.fecha===fecha; }).sort(function(a,b){ return (b.creado||'').localeCompare(a.creado||''); });
   var tb=document.getElementById('gastos-tb');
   if(!lista.length){ tb.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--tx3);padding:22px;font-size:13px">Sin gastos registrados este día</td></tr>'; return; }
@@ -2894,6 +2901,50 @@ function renderGastos(){
       +'<td style="font-size:12px;color:var(--tx2)">'+pensEscapeHtml(g.registradoPor||'—')+'</td>'
       +'<td>'+(MODO_SOLO_LECTURA?'':'<button class="bc" style="background:var(--red)" onclick="eliminarGasto(\''+g.id+'\')">Cancelar</button>')+'</td></tr>';
   }).join('');
+}
+
+// Combina lo cobrado en estacionamiento, pensionados y baños por usuario,
+// dentro de una lista de fechas ('YYYY-MM-DD') — un solo día o todo un mes.
+function gastosUsuariosPorRango(fechas){
+  var mapa={}; // usuario -> {parking, pensionados, banos}
+  var fechasSet={}; fechas.forEach(function(f){ fechasSet[f]=true; });
+  function add(usuario, campo, monto){
+    usuario = usuario || '—';
+    if(!mapa[usuario]) mapa[usuario]={parking:0,pensionados:0,banos:0};
+    mapa[usuario][campo]+=monto;
+  }
+
+  DB.registros.forEach(function(r){
+    if(r.estado==='finalizado' && r.salida && fechasSet[r.salida.slice(0,10)]){
+      add(r.cobrador, 'parking', r.total||0);
+    }
+  });
+  pensTodosLosPagos().forEach(function(ev){
+    if(fechasSet[ev.fecha]) add(ev.registradoPor, 'pensionados', ev.monto||0);
+  });
+  DB.banos.forEach(function(b){
+    if(fechasSet[b.fecha]) add(b.registradoPor, 'banos', b.monto||0);
+  });
+
+  var lista=Object.keys(mapa).map(function(u){
+    var d=mapa[u];
+    return {usuario:u, parking:d.parking, pensionados:d.pensionados, banos:d.banos, total:d.parking+d.pensionados+d.banos};
+  });
+  lista.sort(function(a,b){ return b.total-a.total; });
+  return lista;
+}
+function gastosUsuariosFilaHtml(u){
+  return '<tr><td style="font-weight:600">'+pensEscapeHtml(u.usuario)+'</td>'
+    +'<td>'+fmtMXN(u.parking)+'</td>'
+    +'<td>'+fmtMXN(u.pensionados)+'</td>'
+    +'<td>'+fmtMXN(u.banos)+'</td>'
+    +'<td style="font-weight:800;color:#16a34a">'+fmtMXN(u.total)+'</td></tr>';
+}
+function renderGastosUsuarios(fecha){
+  var lista=gastosUsuariosPorRango([fecha]);
+  var tb=document.getElementById('gastos-usuarios-tb');
+  if(!lista.length){ tb.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--tx3);padding:22px;font-size:13px">Sin movimientos registrados este día</td></tr>'; return; }
+  tb.innerHTML=lista.map(gastosUsuariosFilaHtml).join('');
 }
 
 function abrirGastoNuevo(){
@@ -2957,9 +3008,11 @@ function renderGastosMes(){
   var hoyStr=hoy();
   var acumulado=0;
   var filas=[];
+  var fechasDelMes=[];
   for(var d=1; d<=totalDias; d++){
     var fecha=mes+'-'+('0'+d).slice(-2);
     if(fecha>hoyStr) break; // no calcular días futuros
+    fechasDelMes.push(fecha);
     var ingP=gastosIngresoParking(fecha);
     var ingPe=gastosIngresoPensionados(fecha);
     var ingB=gastosIngresoBanos(fecha);
@@ -2970,6 +3023,13 @@ function renderGastosMes(){
     if(ingP===0 && ingPe===0 && ingB===0 && gDia===0) continue; // omitir días totalmente sin actividad
     filas.push({fecha:fecha,ingP:ingP,ingPe:ingPe,ingB:ingB,totIng:totIng,gDia:gDia,neto:neto,acumulado:acumulado});
   }
+
+  var listaUsuarios=gastosUsuariosPorRango(fechasDelMes);
+  var tbUsuarios=document.getElementById('gastos-mes-usuarios-tb');
+  tbUsuarios.innerHTML=listaUsuarios.length
+    ? listaUsuarios.map(gastosUsuariosFilaHtml).join('')
+    : '<tr><td colspan="5" style="text-align:center;color:var(--tx3);padding:22px;font-size:13px">Sin movimientos registrados en '+mesNombre(mes)+'</td></tr>';
+
   var tb=document.getElementById('gastos-mes-tb');
   if(!filas.length){
     tb.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--tx3);padding:22px;font-size:13px">Sin movimientos registrados en '+mesNombre(mes)+'</td></tr>';
